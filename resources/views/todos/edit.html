@@ -9,13 +9,13 @@
 
   <form id="editForm">
     <div>
-      <label for="name">Nama Todo</label><br>
+      <label for="name">Name</label><br>
       <input type="text" id="name" name="name" value="{{ todo.name }}" required>
     </div>
 
     <div style="margin-top: 8px;">
       <button type="submit">Update</button>
-      <a href="/todos" style="margin-left: 8px;">← Kembali ke Daftar</a>
+      <a href="/todos" style="margin-left: 8px;">← Back to List</a>
     </div>
   </form>
 
@@ -41,7 +41,7 @@
         // redirect balik ke daftar
         window.location.href = "/todos";
       } else {
-        alert("Update gagal!");
+        alert("Update failed!");
       }
     });
   </script>
