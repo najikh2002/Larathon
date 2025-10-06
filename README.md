@@ -128,7 +128,7 @@ We welcome contributions from the community!
 3. Add the upstream repository:
 
    ```bash
-   git remote add upstream https://github.com/hizbullahnajihan/Larathon.git
+   git remote add upstream https://github.com/najikh2002/Larathon.git
    ```
 4. Create a new feature branch before making changes:
 
