@@ -310,8 +310,6 @@ class Router:
     def list_routes(cls):
         return cls.routes
 
-Route = Router
-
 # ================================================================================
 # File: vendor/Illuminate/Support/Env.py
 # ================================================================================
@@ -792,6 +790,20 @@ class ViewServiceProvider:
         Facade._resolved["view"] = ViewManager()
 
 # ================================================================================
+# File: bootstrap/providers.py
+# ================================================================================
+def register_providers(app):
+    providers = [
+        AppServiceProvider(),
+        AuthServiceProvider(),
+        RouteServiceProvider(),
+        ViewServiceProvider(),
+    ]
+
+    for provider in providers:
+        provider.register(app)
+
+# ================================================================================
 # File: bootstrap/app.py
 # ================================================================================
 def create_app():
@@ -812,20 +824,6 @@ def create_app():
 
 
 app = create_app()
-
-# ================================================================================
-# File: bootstrap/providers.py
-# ================================================================================
-def register_providers(app):
-    providers = [
-        AppServiceProvider(),
-        AuthServiceProvider(),
-        RouteServiceProvider(),
-        ViewServiceProvider(),
-    ]
-
-    for provider in providers:
-        provider.register(app)
 
 # ================================================================================
 # File: routes/web.py
