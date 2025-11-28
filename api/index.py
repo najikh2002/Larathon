@@ -857,12 +857,6 @@ def register_routes():
 # Application Entry Point for Vercel
 # ================================================================================
 
-# Create FastAPI app instance
-_app = create_app()
-
-# Wrap with Mangum for serverless compatibility
-from mangum import Mangum
-handler = Mangum(_app, lifespan="off")
-
-# Export app for direct access (local development)
-app = _app
+# Vercel automatically detects and runs FastAPI apps
+# Export 'app' instance directly - no wrapper needed
+app = create_app()
