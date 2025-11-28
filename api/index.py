@@ -2375,6 +2375,131 @@ class Controller:
         return {}
 
 # ================================================================================
+# File: app/Http/Middleware/AuthMiddleware.py
+# ================================================================================
+"""
+Authentication Middleware
+"""
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """
+    Authentication middleware
+    Protects routes that require authentication
+    """
+    
+    async def dispatch(self, request, call_next):
+        # Get token from cookie or header
+        token = request.cookies.get('auth_token')
+        
+        if not token:
+            # Try Authorization header
+            auth_header = request.headers.get('Authorization')
+            token = JWT.extract_from_header(auth_header)
+        
+        # Decode token
+        payload = JWT.decode(token) if token else None
+        
+        # Attach user info to request state
+        if payload:
+            request.state.user = payload
+            request.state.authenticated = True
+        else:
+            request.state.user = None
+            request.state.authenticated = False
+        
+        response = await call_next(request)
+        return response
+
+
+def require_auth(func):
+    """
+    Decorator to require authentication for a route
+    Usage: @require_auth
+    """
+    async def wrapper(self, request, *args, **kwargs):
+        if not getattr(request.state, 'authenticated', False):
+            # Check if it's an API request
+            if request.url.path.startswith('/api/'):
+                return JSONResponse(
+                    {'error': 'Unauthorized', 'message': 'Authentication required'},
+                    status_code=401
+                )
+            # Redirect to login for web requests
+            return RedirectResponse(url=f'/login?redirect={request.url.path}', status_code=302)
+        
+        return await func(self, request, *args, **kwargs)
+    
+    return wrapper
+
+
+def require_role(role: str):
+    """
+    Decorator to require specific role
+    Usage: @require_role('admin')
+    """
+    def decorator(func):
+        async def wrapper(self, request, *args, **kwargs):
+            if not getattr(request.state, 'authenticated', False):
+                if request.url.path.startswith('/api/'):
+                    return JSONResponse(
+                        {'error': 'Unauthorized', 'message': 'Authentication required'},
+                        status_code=401
+                    )
+                return RedirectResponse(url=f'/login?redirect={request.url.path}', status_code=302)
+            
+            user_role = request.state.user.get('role', 'user')
+            if user_role != role:
+                if request.url.path.startswith('/api/'):
+                    return JSONResponse(
+                        {'error': 'Forbidden', 'message': f'Requires {role} role'},
+                        status_code=403
+                    )
+                return JSONResponse(
+                    {'error': 'Access denied', 'message': f'Requires {role} role'},
+                    status_code=403
+                )
+            
+            return await func(self, request, *args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+
+async def get_current_user(request):
+    """Helper function to get current authenticated user"""
+    if not getattr(request.state, 'authenticated', False):
+        return None
+    
+    user_id = request.state.user.get('user_id')
+    if not user_id:
+        return None
+    
+    return await User.find(user_id)
+
+# ================================================================================
+# File: app/Http/Middleware/MethodOverrideMiddleware.py
+# ================================================================================
+class MethodOverrideMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "POST":
+            try:
+                # Read form data and CACHE it in request.state
+                form = await request.form()
+                
+                # Cache form data so controller can access it
+                request.state._cached_form = form
+                
+                # hanya override jika ada _method dan nilainya valid
+                if "_method" in form:
+                    method_override = form["_method"].upper()
+                    if method_override in ("PUT", "DELETE", "PATCH"):
+                        request.scope["method"] = method_override
+            except Exception:
+                pass
+        return await call_next(request)
+
+# ================================================================================
 # File: app/Http/Controllers/AuthController.py
 # ================================================================================
 """
@@ -3062,131 +3187,6 @@ class WelcomeController(Controller):
         user = await get_current_user(request) if getattr(request.state, 'authenticated', False) else None
         
         return self.view('welcome', request, {'user': user})
-
-# ================================================================================
-# File: app/Http/Middleware/AuthMiddleware.py
-# ================================================================================
-"""
-Authentication Middleware
-"""
-
-
-class AuthMiddleware(BaseHTTPMiddleware):
-    """
-    Authentication middleware
-    Protects routes that require authentication
-    """
-    
-    async def dispatch(self, request, call_next):
-        # Get token from cookie or header
-        token = request.cookies.get('auth_token')
-        
-        if not token:
-            # Try Authorization header
-            auth_header = request.headers.get('Authorization')
-            token = JWT.extract_from_header(auth_header)
-        
-        # Decode token
-        payload = JWT.decode(token) if token else None
-        
-        # Attach user info to request state
-        if payload:
-            request.state.user = payload
-            request.state.authenticated = True
-        else:
-            request.state.user = None
-            request.state.authenticated = False
-        
-        response = await call_next(request)
-        return response
-
-
-def require_auth(func):
-    """
-    Decorator to require authentication for a route
-    Usage: @require_auth
-    """
-    async def wrapper(self, request, *args, **kwargs):
-        if not getattr(request.state, 'authenticated', False):
-            # Check if it's an API request
-            if request.url.path.startswith('/api/'):
-                return JSONResponse(
-                    {'error': 'Unauthorized', 'message': 'Authentication required'},
-                    status_code=401
-                )
-            # Redirect to login for web requests
-            return RedirectResponse(url=f'/login?redirect={request.url.path}', status_code=302)
-        
-        return await func(self, request, *args, **kwargs)
-    
-    return wrapper
-
-
-def require_role(role: str):
-    """
-    Decorator to require specific role
-    Usage: @require_role('admin')
-    """
-    def decorator(func):
-        async def wrapper(self, request, *args, **kwargs):
-            if not getattr(request.state, 'authenticated', False):
-                if request.url.path.startswith('/api/'):
-                    return JSONResponse(
-                        {'error': 'Unauthorized', 'message': 'Authentication required'},
-                        status_code=401
-                    )
-                return RedirectResponse(url=f'/login?redirect={request.url.path}', status_code=302)
-            
-            user_role = request.state.user.get('role', 'user')
-            if user_role != role:
-                if request.url.path.startswith('/api/'):
-                    return JSONResponse(
-                        {'error': 'Forbidden', 'message': f'Requires {role} role'},
-                        status_code=403
-                    )
-                return JSONResponse(
-                    {'error': 'Access denied', 'message': f'Requires {role} role'},
-                    status_code=403
-                )
-            
-            return await func(self, request, *args, **kwargs)
-        
-        return wrapper
-    return decorator
-
-
-async def get_current_user(request):
-    """Helper function to get current authenticated user"""
-    if not getattr(request.state, 'authenticated', False):
-        return None
-    
-    user_id = request.state.user.get('user_id')
-    if not user_id:
-        return None
-    
-    return await User.find(user_id)
-
-# ================================================================================
-# File: app/Http/Middleware/MethodOverrideMiddleware.py
-# ================================================================================
-class MethodOverrideMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if request.method == "POST":
-            try:
-                # Read form data and CACHE it in request.state
-                form = await request.form()
-                
-                # Cache form data so controller can access it
-                request.state._cached_form = form
-                
-                # hanya override jika ada _method dan nilainya valid
-                if "_method" in form:
-                    method_override = form["_method"].upper()
-                    if method_override in ("PUT", "DELETE", "PATCH"):
-                        request.scope["method"] = method_override
-            except Exception:
-                pass
-        return await call_next(request)
 
 # ================================================================================
 # File: app/Models/Post.py

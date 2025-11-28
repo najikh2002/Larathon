@@ -176,23 +176,34 @@ class PythonBundler:
             first_dir = parts[-len(filepath.relative_to(self.project_root).parts)]
             dir_order = order.get(first_dir, 99)
             
-            # Special handling for base classes - always process first within their directory
+            # Special handling for base classes and middleware - always process first within their directory
             base_classes = [
                 'app/Http/Controllers/Controller.py',
                 'app/Models/Model.py',
-                'app/Http/Middleware/Middleware.py',
                 'vendor/Illuminate/Database/Model.py',
                 'vendor/Illuminate/Database/Migration.py',
             ]
             
-            # Check if this is a base class
+            # Middleware must be processed before controllers that use them
+            middleware_files = [
+                'app/Http/Middleware/AuthMiddleware.py',
+                'app/Http/Middleware/MethodOverrideMiddleware.py',
+            ]
+            
+            # Check if this is a base class (highest priority)
             for base_class in base_classes:
                 if filepath_str.endswith(base_class.replace('/', os.sep)):
-                    # Give base classes higher priority (lower number)
+                    # Give base classes highest priority (lower number)
                     return (dir_order, 0, str(filepath))
             
-            # Regular files
-            return (dir_order, 1, str(filepath))
+            # Check if this is middleware (second priority)
+            for middleware in middleware_files:
+                if filepath_str.endswith(middleware.replace('/', os.sep)):
+                    # Give middleware second priority
+                    return (dir_order, 1, str(filepath))
+            
+            # Regular files (lowest priority)
+            return (dir_order, 2, str(filepath))
 
         files.sort(key=sort_key)
         return files
