@@ -192,6 +192,13 @@ class PythonBundler:
                 'app/Http/Middleware/MethodOverrideMiddleware.py',
             ]
             
+            # Routing files order: RouteGroup.py (PendingRoute) BEFORE ImprovedRouter.py (ImprovedRoute)
+            # Because ImprovedRoute uses PendingRoute class
+            if filepath_str.endswith('vendor/Illuminate/Routing/RouteGroup.py'.replace('/', os.sep)):
+                return (dir_order, 0, str(filepath))  # RouteGroup first (has PendingRoute)
+            elif filepath_str.endswith('vendor/Illuminate/Routing/ImprovedRouter.py'.replace('/', os.sep)):
+                return (dir_order, 1, str(filepath))  # ImprovedRouter second (uses PendingRoute)
+            
             # Bootstrap files order is critical: providers.py BEFORE app.py
             # Because app.py's create_app() calls register_providers() from providers.py
             if filepath_str.endswith('bootstrap/providers.py'.replace('/', os.sep)):

@@ -561,6 +561,402 @@ class QueryBuilder:
             conn.close()
 
 # ================================================================================
+# File: vendor/Illuminate/Routing/RouteGroup.py
+# ================================================================================
+"""
+Route Group - Laravel-style route grouping
+"""
+
+
+class RouteGroup:
+    """
+    Route group for applying common attributes to multiple routes
+    
+    Usage:
+        Route.prefix('admin').middleware(['auth']).group(lambda:
+            Route.get('/users', UserController, 'index')
+            Route.get('/posts', PostController, 'index')
+        )
+    """
+    
+    def __init__(self):
+        self.attributes = {
+            'prefix': '',
+            'name': '',
+            'middleware': [],
+            'namespace': ''
+        }
+    
+    def prefix(self, prefix: str):
+        """Set URL prefix for all routes in group"""
+        self.attributes['prefix'] = prefix.strip('/')
+        return self
+    
+    def name(self, name: str):
+        """Set name prefix for all routes in group"""
+        self.attributes['name'] = name
+        return self
+    
+    def middleware(self, middleware: List[str]):
+        """Set middleware for all routes in group"""
+        if isinstance(middleware, str):
+            middleware = [middleware]
+        self.attributes['middleware'] = middleware
+        return self
+    
+    def namespace(self, namespace: str):
+        """Set controller namespace for all routes in group"""
+        self.attributes['namespace'] = namespace
+        return self
+    
+    def group(self, callback: Callable):
+        """Execute the group callback with current attributes"""
+        # Store current group context
+        previous_group = ImprovedRoute._current_group
+        
+        # Merge with parent group if exists
+        if previous_group:
+            merged_attributes = {
+                'prefix': f"{previous_group['prefix']}/{self.attributes['prefix']}".strip('/'),
+                'name': f"{previous_group['name']}{self.attributes['name']}",
+                'middleware': previous_group['middleware'] + self.attributes['middleware'],
+                'namespace': self.attributes['namespace'] or previous_group['namespace']
+            }
+            ImprovedRoute._current_group = merged_attributes
+        else:
+            ImprovedRoute._current_group = self.attributes.copy()
+        
+        # Execute callback to register routes
+        callback()
+        
+        # Restore previous group context
+        ImprovedRoute._current_group = previous_group
+        
+        return self
+
+
+class PendingRoute:
+    """
+    Pending route that can have middleware and name applied
+    
+    Usage:
+        Route.get('/dashboard', DashboardController, 'index')
+             .middleware(['auth'])
+             .name('dashboard')
+    """
+    
+    def __init__(self, method: str, path: str, controller, action: str, router):
+        self.method = method
+        self.path = path
+        self.controller = controller
+        self.action = action
+        self.router = router
+        self.route_middleware = []
+        self.route_name = None
+    
+    def middleware(self, middleware: List[str]):
+        """Add middleware to this specific route"""
+        if isinstance(middleware, str):
+            middleware = [middleware]
+        self.route_middleware = middleware
+        return self
+    
+    def name(self, name: str):
+        """Set name for this route"""
+        self.route_name = name
+        return self
+    
+    def register(self):
+        """Register the route with all attributes"""
+        # Get current group attributes
+        group = ImprovedRoute._current_group or {}
+        
+        # Merge path with group prefix
+        prefix = group.get('prefix', '').strip('/')
+        path = self.path.strip('/')
+        
+        if prefix and path:
+            full_path = f"/{prefix}/{path}"
+        elif prefix:
+            full_path = f"/{prefix}"
+        elif path:
+            full_path = f"/{path}"
+        else:
+            full_path = '/'
+        
+        # Merge middleware
+        all_middleware = group.get('middleware', []) + self.route_middleware
+        
+        # Merge name
+        full_name = f"{group.get('name', '')}{self.route_name or ''}"
+        
+        # Register the route with router
+        self.router._register_route(
+            self.method,
+            full_path,
+            self.controller,
+            self.action,
+            middleware=all_middleware,
+            name=full_name
+        )
+
+# ================================================================================
+# File: vendor/Illuminate/Routing/ImprovedRouter.py
+# ================================================================================
+"""
+Improved Router with Laravel-style features
+- Middleware support
+- Route groups
+- Named routes
+- Prefix support
+"""
+
+
+class ImprovedRoute:
+    """
+    Improved Route class with Laravel-style features
+    
+    Usage:
+        # Basic routes
+        Route.get('/posts', PostController, 'index')
+        
+        # With middleware
+        Route.get('/dashboard', DashboardController, 'index').middleware(['auth'])
+        
+        # Named routes
+        Route.get('/posts/{id}', PostController, 'show').name('posts.show')
+        
+        # Route groups
+        Route.prefix('admin').middleware(['auth', 'admin']).group(lambda:
+            Route.get('/users', UserController, 'index').name('users.index')
+            Route.get('/posts', PostController, 'index').name('posts.index')
+        )
+        
+        # Nested groups
+        Route.prefix('api').group(lambda:
+            Route.prefix('v1').group(lambda:
+                Route.get('/users', ApiUserController, 'index')
+            )
+        )
+    """
+    
+    router = APIRouter()
+    _current_group = None
+    _named_routes = {}
+    _middleware_stack = {}
+    
+    @classmethod
+    def get(cls, path: str, controller, action: str):
+        """Register GET route"""
+        pending = PendingRoute('GET', path, controller, action, cls)
+        pending.register()
+        return pending
+    
+    @classmethod
+    def post(cls, path: str, controller, action: str):
+        """Register POST route"""
+        pending = PendingRoute('POST', path, controller, action, cls)
+        pending.register()
+        return pending
+    
+    @classmethod
+    def put(cls, path: str, controller, action: str):
+        """Register PUT route"""
+        pending = PendingRoute('PUT', path, controller, action, cls)
+        pending.register()
+        return pending
+    
+    @classmethod
+    def delete(cls, path: str, controller, action: str):
+        """Register DELETE route"""
+        pending = PendingRoute('DELETE', path, controller, action, cls)
+        pending.register()
+        return pending
+    
+    @classmethod
+    def patch(cls, path: str, controller, action: str):
+        """Register PATCH route"""
+        pending = PendingRoute('PATCH', path, controller, action, cls)
+        pending.register()
+        return pending
+    
+    @classmethod
+    def prefix(cls, prefix: str):
+        """Start a new route group with prefix"""
+        group = RouteGroup()
+        return group.prefix(prefix)
+    
+    @classmethod
+    def middleware(cls, middleware: List[str]):
+        """Start a new route group with middleware"""
+        group = RouteGroup()
+        return group.middleware(middleware)
+    
+    @classmethod
+    def name(cls, name: str):
+        """Start a new route group with name prefix"""
+        group = RouteGroup()
+        return group.name(name)
+    
+    @classmethod
+    def group(cls, attributes: Dict, callback: Callable):
+        """Create route group with attributes dict"""
+        group = RouteGroup()
+        
+        if 'prefix' in attributes:
+            group.prefix(attributes['prefix'])
+        if 'middleware' in attributes:
+            group.middleware(attributes['middleware'])
+        if 'name' in attributes:
+            group.name(attributes['name'])
+        if 'namespace' in attributes:
+            group.namespace(attributes['namespace'])
+        
+        return group.group(callback)
+    
+    @classmethod
+    def resource(cls, name: str, controller):
+        """Register resource routes (CRUD)"""
+        group = cls._current_group or {}
+        prefix = group.get('prefix', '')
+        name_prefix = group.get('name', '')
+        middleware = group.get('middleware', [])
+        
+        # Build full path
+        base_path = f"/{prefix}/{name}".replace('//', '/').rstrip('/')
+        
+        # Register all resource routes
+        routes = [
+            ('GET', f"{base_path}", 'index', f"{name_prefix}{name}.index"),
+            ('GET', f"{base_path}/create", 'create', f"{name_prefix}{name}.create"),
+            ('POST', f"{base_path}", 'store', f"{name_prefix}{name}.store"),
+            ('GET', f"{base_path}/{{id}}", 'show', f"{name_prefix}{name}.show"),
+            ('GET', f"{base_path}/{{id}}/edit", 'edit', f"{name_prefix}{name}.edit"),
+            ('PUT', f"{base_path}/{{id}}", 'update', f"{name_prefix}{name}.update"),
+            ('DELETE', f"{base_path}/{{id}}", 'destroy', f"{name_prefix}{name}.destroy"),
+        ]
+        
+        for method, path, action, route_name in routes:
+            cls._register_route(method, path, controller, action, middleware, route_name)
+    
+    @classmethod
+    def _register_route(cls, method: str, path: str, controller, action: str, 
+                       middleware: List[str] = None, name: str = None):
+        """Internal method to register route with FastAPI"""
+        # Store middleware for this route
+        if middleware:
+            cls._middleware_stack[path] = middleware
+        
+        # Store named route
+        if name:
+            cls._named_routes[name] = path
+        
+        # Get controller instance and method
+        controller_instance = controller() if callable(controller) else controller
+        handler = getattr(controller_instance, action)
+        
+        # Inspect handler signature to check if it needs form data injection
+        handler_sig = signature(handler)
+        needs_form_injection = any(
+            param.annotation == Form or 
+            (hasattr(param.annotation, '__origin__') and param.annotation.__origin__ == type(Form))
+            for param in handler_sig.parameters.values()
+            if param.name != 'request' and param.name != 'self'
+        )
+        
+        # Create wrapper function with proper signature
+        if middleware:
+            # With middleware - wrap the handler
+            async def route_handler(request: Request):
+                """Wrapper that executes middleware before controller"""
+                
+                # DEBUG: Check request details
+                print(f"DEBUG Router: Method={request.method}, Path={request.url.path}")
+                print(f"DEBUG Router: Content-Type={request.headers.get('content-type')}")
+                
+                # Execute middleware chain
+                for middleware_name in middleware:
+                    # Check auth middleware
+                    if middleware_name == 'auth':
+                        if not getattr(request.state, 'authenticated', False):
+                            if request.url.path.startswith('/api/'):
+                                return JSONResponse(
+                                    {'error': 'Unauthorized', 'message': 'Authentication required'},
+                                    status_code=401
+                                )
+                            return RedirectResponse(url=f'/login?redirect={request.url.path}', status_code=302)
+                    
+                    # Check admin middleware
+                    elif middleware_name == 'admin':
+                        user_role = request.state.user.get('role', 'user') if hasattr(request.state, 'user') else 'user'
+                        if user_role != 'admin':
+                            return JSONResponse(
+                                {'error': 'Forbidden', 'message': 'Requires admin role'},
+                                status_code=403
+                            )
+                
+                # Get path parameters from request
+                path_params = request.path_params
+                
+                # Call the actual controller method
+                if inspect.iscoroutinefunction(handler):
+                    return await handler(request, **path_params)
+                else:
+                    return handler(request, **path_params)
+        else:
+            # Without middleware - use handler directly
+            async def route_handler(request: Request):
+                """Direct handler without middleware"""
+                # DEBUG
+                print(f"DEBUG Router (no middleware): Method={request.method}, Path={request.url.path}")
+                print(f"DEBUG Router: Content-Type={request.headers.get('content-type')}")
+                
+                path_params = request.path_params
+                
+                if inspect.iscoroutinefunction(handler):
+                    return await handler(request, **path_params)
+                else:
+                    return handler(request, **path_params)
+        
+        # Register with FastAPI router based on method
+        methods_map = {
+            'GET': cls.router.get,
+            'POST': cls.router.post,
+            'PUT': cls.router.put,
+            'DELETE': cls.router.delete,
+            'PATCH': cls.router.patch,
+        }
+        
+        route_decorator = methods_map.get(method.upper())
+        if route_decorator:
+            route_decorator(path)(route_handler)
+    
+    @classmethod
+    def get_named_route(cls, name: str, params: Dict = None) -> str:
+        """Get URL for named route"""
+        if name not in cls._named_routes:
+            raise ValueError(f"Route '{name}' not found")
+        
+        path = cls._named_routes[name]
+        
+        # Replace parameters
+        if params:
+            for key, value in params.items():
+                path = path.replace(f"{{{key}}}", str(value))
+        
+        return path
+    
+    @classmethod
+    def has_middleware(cls, path: str, middleware_name: str) -> bool:
+        """Check if route has specific middleware"""
+        route_middleware = cls._middleware_stack.get(path, [])
+        return middleware_name in route_middleware
+
+
+# Create global instance
+Route = ImprovedRoute
+
+# ================================================================================
 # File: vendor/Illuminate/Auth/JWT.py
 # ================================================================================
 """
@@ -1453,402 +1849,6 @@ Storage = StorageFacade
 # File: vendor/Illuminate/Filesystem/__init__.py
 # ================================================================================
 # Filesystem module
-
-# ================================================================================
-# File: vendor/Illuminate/Routing/ImprovedRouter.py
-# ================================================================================
-"""
-Improved Router with Laravel-style features
-- Middleware support
-- Route groups
-- Named routes
-- Prefix support
-"""
-
-
-class ImprovedRoute:
-    """
-    Improved Route class with Laravel-style features
-    
-    Usage:
-        # Basic routes
-        Route.get('/posts', PostController, 'index')
-        
-        # With middleware
-        Route.get('/dashboard', DashboardController, 'index').middleware(['auth'])
-        
-        # Named routes
-        Route.get('/posts/{id}', PostController, 'show').name('posts.show')
-        
-        # Route groups
-        Route.prefix('admin').middleware(['auth', 'admin']).group(lambda:
-            Route.get('/users', UserController, 'index').name('users.index')
-            Route.get('/posts', PostController, 'index').name('posts.index')
-        )
-        
-        # Nested groups
-        Route.prefix('api').group(lambda:
-            Route.prefix('v1').group(lambda:
-                Route.get('/users', ApiUserController, 'index')
-            )
-        )
-    """
-    
-    router = APIRouter()
-    _current_group = None
-    _named_routes = {}
-    _middleware_stack = {}
-    
-    @classmethod
-    def get(cls, path: str, controller, action: str):
-        """Register GET route"""
-        pending = PendingRoute('GET', path, controller, action, cls)
-        pending.register()
-        return pending
-    
-    @classmethod
-    def post(cls, path: str, controller, action: str):
-        """Register POST route"""
-        pending = PendingRoute('POST', path, controller, action, cls)
-        pending.register()
-        return pending
-    
-    @classmethod
-    def put(cls, path: str, controller, action: str):
-        """Register PUT route"""
-        pending = PendingRoute('PUT', path, controller, action, cls)
-        pending.register()
-        return pending
-    
-    @classmethod
-    def delete(cls, path: str, controller, action: str):
-        """Register DELETE route"""
-        pending = PendingRoute('DELETE', path, controller, action, cls)
-        pending.register()
-        return pending
-    
-    @classmethod
-    def patch(cls, path: str, controller, action: str):
-        """Register PATCH route"""
-        pending = PendingRoute('PATCH', path, controller, action, cls)
-        pending.register()
-        return pending
-    
-    @classmethod
-    def prefix(cls, prefix: str):
-        """Start a new route group with prefix"""
-        group = RouteGroup()
-        return group.prefix(prefix)
-    
-    @classmethod
-    def middleware(cls, middleware: List[str]):
-        """Start a new route group with middleware"""
-        group = RouteGroup()
-        return group.middleware(middleware)
-    
-    @classmethod
-    def name(cls, name: str):
-        """Start a new route group with name prefix"""
-        group = RouteGroup()
-        return group.name(name)
-    
-    @classmethod
-    def group(cls, attributes: Dict, callback: Callable):
-        """Create route group with attributes dict"""
-        group = RouteGroup()
-        
-        if 'prefix' in attributes:
-            group.prefix(attributes['prefix'])
-        if 'middleware' in attributes:
-            group.middleware(attributes['middleware'])
-        if 'name' in attributes:
-            group.name(attributes['name'])
-        if 'namespace' in attributes:
-            group.namespace(attributes['namespace'])
-        
-        return group.group(callback)
-    
-    @classmethod
-    def resource(cls, name: str, controller):
-        """Register resource routes (CRUD)"""
-        group = cls._current_group or {}
-        prefix = group.get('prefix', '')
-        name_prefix = group.get('name', '')
-        middleware = group.get('middleware', [])
-        
-        # Build full path
-        base_path = f"/{prefix}/{name}".replace('//', '/').rstrip('/')
-        
-        # Register all resource routes
-        routes = [
-            ('GET', f"{base_path}", 'index', f"{name_prefix}{name}.index"),
-            ('GET', f"{base_path}/create", 'create', f"{name_prefix}{name}.create"),
-            ('POST', f"{base_path}", 'store', f"{name_prefix}{name}.store"),
-            ('GET', f"{base_path}/{{id}}", 'show', f"{name_prefix}{name}.show"),
-            ('GET', f"{base_path}/{{id}}/edit", 'edit', f"{name_prefix}{name}.edit"),
-            ('PUT', f"{base_path}/{{id}}", 'update', f"{name_prefix}{name}.update"),
-            ('DELETE', f"{base_path}/{{id}}", 'destroy', f"{name_prefix}{name}.destroy"),
-        ]
-        
-        for method, path, action, route_name in routes:
-            cls._register_route(method, path, controller, action, middleware, route_name)
-    
-    @classmethod
-    def _register_route(cls, method: str, path: str, controller, action: str, 
-                       middleware: List[str] = None, name: str = None):
-        """Internal method to register route with FastAPI"""
-        # Store middleware for this route
-        if middleware:
-            cls._middleware_stack[path] = middleware
-        
-        # Store named route
-        if name:
-            cls._named_routes[name] = path
-        
-        # Get controller instance and method
-        controller_instance = controller() if callable(controller) else controller
-        handler = getattr(controller_instance, action)
-        
-        # Inspect handler signature to check if it needs form data injection
-        handler_sig = signature(handler)
-        needs_form_injection = any(
-            param.annotation == Form or 
-            (hasattr(param.annotation, '__origin__') and param.annotation.__origin__ == type(Form))
-            for param in handler_sig.parameters.values()
-            if param.name != 'request' and param.name != 'self'
-        )
-        
-        # Create wrapper function with proper signature
-        if middleware:
-            # With middleware - wrap the handler
-            async def route_handler(request: Request):
-                """Wrapper that executes middleware before controller"""
-                
-                # DEBUG: Check request details
-                print(f"DEBUG Router: Method={request.method}, Path={request.url.path}")
-                print(f"DEBUG Router: Content-Type={request.headers.get('content-type')}")
-                
-                # Execute middleware chain
-                for middleware_name in middleware:
-                    # Check auth middleware
-                    if middleware_name == 'auth':
-                        if not getattr(request.state, 'authenticated', False):
-                            if request.url.path.startswith('/api/'):
-                                return JSONResponse(
-                                    {'error': 'Unauthorized', 'message': 'Authentication required'},
-                                    status_code=401
-                                )
-                            return RedirectResponse(url=f'/login?redirect={request.url.path}', status_code=302)
-                    
-                    # Check admin middleware
-                    elif middleware_name == 'admin':
-                        user_role = request.state.user.get('role', 'user') if hasattr(request.state, 'user') else 'user'
-                        if user_role != 'admin':
-                            return JSONResponse(
-                                {'error': 'Forbidden', 'message': 'Requires admin role'},
-                                status_code=403
-                            )
-                
-                # Get path parameters from request
-                path_params = request.path_params
-                
-                # Call the actual controller method
-                if inspect.iscoroutinefunction(handler):
-                    return await handler(request, **path_params)
-                else:
-                    return handler(request, **path_params)
-        else:
-            # Without middleware - use handler directly
-            async def route_handler(request: Request):
-                """Direct handler without middleware"""
-                # DEBUG
-                print(f"DEBUG Router (no middleware): Method={request.method}, Path={request.url.path}")
-                print(f"DEBUG Router: Content-Type={request.headers.get('content-type')}")
-                
-                path_params = request.path_params
-                
-                if inspect.iscoroutinefunction(handler):
-                    return await handler(request, **path_params)
-                else:
-                    return handler(request, **path_params)
-        
-        # Register with FastAPI router based on method
-        methods_map = {
-            'GET': cls.router.get,
-            'POST': cls.router.post,
-            'PUT': cls.router.put,
-            'DELETE': cls.router.delete,
-            'PATCH': cls.router.patch,
-        }
-        
-        route_decorator = methods_map.get(method.upper())
-        if route_decorator:
-            route_decorator(path)(route_handler)
-    
-    @classmethod
-    def get_named_route(cls, name: str, params: Dict = None) -> str:
-        """Get URL for named route"""
-        if name not in cls._named_routes:
-            raise ValueError(f"Route '{name}' not found")
-        
-        path = cls._named_routes[name]
-        
-        # Replace parameters
-        if params:
-            for key, value in params.items():
-                path = path.replace(f"{{{key}}}", str(value))
-        
-        return path
-    
-    @classmethod
-    def has_middleware(cls, path: str, middleware_name: str) -> bool:
-        """Check if route has specific middleware"""
-        route_middleware = cls._middleware_stack.get(path, [])
-        return middleware_name in route_middleware
-
-
-# Create global instance
-Route = ImprovedRoute
-
-# ================================================================================
-# File: vendor/Illuminate/Routing/RouteGroup.py
-# ================================================================================
-"""
-Route Group - Laravel-style route grouping
-"""
-
-
-class RouteGroup:
-    """
-    Route group for applying common attributes to multiple routes
-    
-    Usage:
-        Route.prefix('admin').middleware(['auth']).group(lambda:
-            Route.get('/users', UserController, 'index')
-            Route.get('/posts', PostController, 'index')
-        )
-    """
-    
-    def __init__(self):
-        self.attributes = {
-            'prefix': '',
-            'name': '',
-            'middleware': [],
-            'namespace': ''
-        }
-    
-    def prefix(self, prefix: str):
-        """Set URL prefix for all routes in group"""
-        self.attributes['prefix'] = prefix.strip('/')
-        return self
-    
-    def name(self, name: str):
-        """Set name prefix for all routes in group"""
-        self.attributes['name'] = name
-        return self
-    
-    def middleware(self, middleware: List[str]):
-        """Set middleware for all routes in group"""
-        if isinstance(middleware, str):
-            middleware = [middleware]
-        self.attributes['middleware'] = middleware
-        return self
-    
-    def namespace(self, namespace: str):
-        """Set controller namespace for all routes in group"""
-        self.attributes['namespace'] = namespace
-        return self
-    
-    def group(self, callback: Callable):
-        """Execute the group callback with current attributes"""
-        # Store current group context
-        previous_group = ImprovedRoute._current_group
-        
-        # Merge with parent group if exists
-        if previous_group:
-            merged_attributes = {
-                'prefix': f"{previous_group['prefix']}/{self.attributes['prefix']}".strip('/'),
-                'name': f"{previous_group['name']}{self.attributes['name']}",
-                'middleware': previous_group['middleware'] + self.attributes['middleware'],
-                'namespace': self.attributes['namespace'] or previous_group['namespace']
-            }
-            ImprovedRoute._current_group = merged_attributes
-        else:
-            ImprovedRoute._current_group = self.attributes.copy()
-        
-        # Execute callback to register routes
-        callback()
-        
-        # Restore previous group context
-        ImprovedRoute._current_group = previous_group
-        
-        return self
-
-
-class PendingRoute:
-    """
-    Pending route that can have middleware and name applied
-    
-    Usage:
-        Route.get('/dashboard', DashboardController, 'index')
-             .middleware(['auth'])
-             .name('dashboard')
-    """
-    
-    def __init__(self, method: str, path: str, controller, action: str, router):
-        self.method = method
-        self.path = path
-        self.controller = controller
-        self.action = action
-        self.router = router
-        self.route_middleware = []
-        self.route_name = None
-    
-    def middleware(self, middleware: List[str]):
-        """Add middleware to this specific route"""
-        if isinstance(middleware, str):
-            middleware = [middleware]
-        self.route_middleware = middleware
-        return self
-    
-    def name(self, name: str):
-        """Set name for this route"""
-        self.route_name = name
-        return self
-    
-    def register(self):
-        """Register the route with all attributes"""
-        # Get current group attributes
-        group = ImprovedRoute._current_group or {}
-        
-        # Merge path with group prefix
-        prefix = group.get('prefix', '').strip('/')
-        path = self.path.strip('/')
-        
-        if prefix and path:
-            full_path = f"/{prefix}/{path}"
-        elif prefix:
-            full_path = f"/{prefix}"
-        elif path:
-            full_path = f"/{path}"
-        else:
-            full_path = '/'
-        
-        # Merge middleware
-        all_middleware = group.get('middleware', []) + self.route_middleware
-        
-        # Merge name
-        full_name = f"{group.get('name', '')}{self.route_name or ''}"
-        
-        # Register the route with router
-        self.router._register_route(
-            self.method,
-            full_path,
-            self.controller,
-            self.action,
-            middleware=all_middleware,
-            name=full_name
-        )
 
 # ================================================================================
 # File: vendor/Illuminate/Routing/Router.py
