@@ -1,10 +1,10 @@
 # app/Http/Controllers/TodoController.py
 from app.Http.Controllers.Controller import Controller
 from app.Models.Todo import Todo
-from vendor.Illuminate.Console import database
+from config.database import get_engine
 from sqlalchemy.orm import sessionmaker
 
-engine = database.get_engine()
+engine = get_engine()
 SessionLocal = sessionmaker(bind=engine)
 
 class TodoController(Controller):

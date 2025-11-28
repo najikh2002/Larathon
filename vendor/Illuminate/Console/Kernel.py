@@ -1,5 +1,5 @@
-from Illuminate.Console.Commands.Migrate import MigrateCommand
-from Illuminate.Console.Commands.MakeMigration import MakeMigrationCommand
+from vendor.Illuminate.Console.Commands.Migrate import MigrateCommand
+from vendor.Illuminate.Console.Commands.MakeMigration import MakeMigrationCommand
 
 class Kernel:
     def __init__(self):

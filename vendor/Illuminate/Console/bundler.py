@@ -28,7 +28,7 @@ class PythonBundler:
             'artisan.py',
             'bundler.py',
             'generators.py',
-            'database.py',
+            'vendor/Illuminate/Console/database.py',  # Only exclude the Console database.py
             'Commands/',
             'migrations/',
             'seeders/',
@@ -63,8 +63,9 @@ class PythonBundler:
                         if module_name in self.include_dirs:
                             local_imports.append(ast.unparse(node))
                         else:
-                            external_imports.append(ast.unparse(node))
-                            self.external_imports.add(ast.unparse(node))
+                            import_stmt = ast.unparse(node)
+                            external_imports.append(import_stmt)
+                            self.external_imports.add(import_stmt)
 
                 elif isinstance(node, ast.ImportFrom):
                     if node.module:
@@ -72,8 +73,14 @@ class PythonBundler:
                         if module_name in self.include_dirs:
                             local_imports.append(ast.unparse(node))
                         else:
-                            external_imports.append(ast.unparse(node))
-                            self.external_imports.add(ast.unparse(node))
+                            import_stmt = ast.unparse(node)
+                            external_imports.append(import_stmt)
+                            self.external_imports.add(import_stmt)
+                    else:
+                        # Handle relative imports
+                        import_stmt = ast.unparse(node)
+                        external_imports.append(import_stmt)
+                        self.external_imports.add(import_stmt)
         except:
             # Fallback to regex if AST parsing fails
             import_pattern = r'^(?:from\s+[\w.]+\s+)?import\s+.+$'
@@ -87,7 +94,7 @@ class PythonBundler:
 
         return local_imports, external_imports
 
-    def remove_imports(self, content: str) -> str:
+    def remove_all_imports(self, content: str) -> str:
         """Remove all import statements from content"""
         lines = content.split('\n')
         result = []
@@ -123,8 +130,11 @@ class PythonBundler:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Remove imports
-        content = self.remove_imports(content)
+        # Extract imports first to collect external dependencies
+        local_imports, external_imports = self.extract_imports(content)
+
+        # Remove all imports (both local and external)
+        content = self.remove_all_imports(content)
 
         # Remove empty lines at start/end
         content = content.strip()
