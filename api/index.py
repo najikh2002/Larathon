@@ -235,140 +235,6 @@ links = {
 }
 
 # ================================================================================
-# File: vendor/Illuminate/Auth/JWT.py
-# ================================================================================
-"""
-JWT Authentication Helper
-"""
-
-
-class JWT:
-    """JWT token generator and validator"""
-    
-    @staticmethod
-    def get_secret() -> str:
-        """Get JWT secret from environment"""
-        secret = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
-        if secret == 'your-secret-key-change-this':
-            warnings.warn("Using default SECRET_KEY! Set SECRET_KEY in .env for production!")
-        return secret
-    
-    @staticmethod
-    def generate(user_id: int, email: str, role: str = 'user', expires_in: int = 24) -> str:
-        """
-        Generate JWT token
-        
-        Args:
-            user_id: User ID
-            email: User email
-            role: User role (default: 'user')
-            expires_in: Token expiration in hours (default: 24)
-        
-        Returns:
-            JWT token string
-        """
-        payload = {
-            'user_id': user_id,
-            'email': email,
-            'role': role,
-            'exp': datetime.utcnow() + timedelta(hours=expires_in),
-            'iat': datetime.utcnow()
-        }
-        
-        token = jwt.encode(payload, JWT.get_secret(), algorithm='HS256')
-        return token
-    
-    @staticmethod
-    def decode(token: str) -> Optional[Dict]:
-        """
-        Decode and validate JWT token
-        
-        Args:
-            token: JWT token string
-        
-        Returns:
-            Decoded payload dict or None if invalid
-        """
-        try:
-            payload = jwt.decode(token, JWT.get_secret(), algorithms=['HS256'])
-            return payload
-        except jwt.ExpiredSignatureError:
-            return None  # Token expired
-        except jwt.InvalidTokenError:
-            return None  # Invalid token
-    
-    @staticmethod
-    def verify(token: str) -> bool:
-        """
-        Verify if token is valid
-        
-        Args:
-            token: JWT token string
-        
-        Returns:
-            True if valid, False otherwise
-        """
-        return JWT.decode(token) is not None
-    
-    @staticmethod
-    def extract_from_header(auth_header: Optional[str]) -> Optional[str]:
-        """
-        Extract token from Authorization header
-        
-        Args:
-            auth_header: Authorization header value (e.g., "Bearer token123")
-        
-        Returns:
-            Token string or None
-        """
-        if not auth_header:
-            return None
-        
-        parts = auth_header.split()
-        if len(parts) != 2 or parts[0].lower() != 'bearer':
-            return None
-        
-        return parts[1]
-
-# ================================================================================
-# File: vendor/Illuminate/Console/Kernel.py
-# ================================================================================
-class Kernel:
-    def __init__(self):
-        self.commands = {
-            "migrate": MigrateCommand(),
-            "make:migration": MakeMigrationCommand(),
-        }
-
-    def handle(self, argv):
-        if len(argv) < 2:
-            print("❌ No command given")
-            return
-
-        cmd = argv[1]
-        args = argv[2:]
-
-        if cmd in self.commands:
-            self.commands[cmd].handle(args)
-        else:
-            print(f"❌ Command {cmd} not found")
-
-# ================================================================================
-# File: vendor/Illuminate/Database/Connection.py
-# ================================================================================
-# Illuminate/Database/Connection.py
-
-def get_engine(echo=False):
-    db_url = get_database_url()
-    engine = create_engine(db_url, echo=echo)
-
-    if not database_exists(engine.url):
-        print(f"⚡ Database not found. Creating: {engine.url.database}")
-        create_database(engine.url)
-
-    return engine
-
-# ================================================================================
 # File: vendor/Illuminate/Database/Migration.py
 # ================================================================================
 """
@@ -432,89 +298,6 @@ class Migration:
             self._engine = engine
         # Child classes should override this method
         pass
-
-# ================================================================================
-# File: vendor/Illuminate/Database/Migrations/MigrationRunner.py
-# ================================================================================
-class MigrationRunner:
-    def __init__(self):
-        self.conn = psycopg2.connect(
-            dbname=env("DB_DATABASE"),
-            user=env("DB_USERNAME"),
-            password=env("DB_PASSWORD"),
-            host=env("DB_HOST"),
-            port=env("DB_PORT"),
-        )
-        self.conn.autocommit = True
-        self.cursor = self.conn.cursor()
-
-        # Pastikan tabel migrations ada
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS migrations (
-                id SERIAL PRIMARY KEY,
-                migration VARCHAR(255) NOT NULL UNIQUE,
-                batch INT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-    def run(self):
-        migrations_path = os.path.join(os.getcwd(), "database/migrations")
-        files = sorted([f for f in os.listdir(migrations_path) if f.endswith(".py")])
-
-        # Ambil batch terakhir
-        self.cursor.execute("SELECT COALESCE(MAX(batch), 0) FROM migrations")
-        current_batch = self.cursor.fetchone()[0] + 1
-
-        for file in files:
-            migration_name = file.replace(".py", "")
-
-            # cek apakah sudah dieksekusi
-            self.cursor.execute("SELECT 1 FROM migrations WHERE migration = %s", (migration_name,))
-            if self.cursor.fetchone():
-                print(f"⚠️ Skipped: {migration_name} already migrated")
-                continue
-
-            print(f"🔼 Running migration: {migration_name}")
-            module = __import__(f"database.migrations.{migration_name}", fromlist=["Migration"])
-            migration = module.Migration()
-            migration.up(self.cursor)
-
-            self.cursor.execute(
-                "INSERT INTO migrations (migration, batch) VALUES (%s, %s)",
-                (migration_name, current_batch),
-            )
-
-        self.cursor.close()
-        self.conn.close()
-
-# ================================================================================
-# File: vendor/Illuminate/Database/Migrator.py
-# ================================================================================
-class Migrator:
-    def __init__(self):
-        self.engine = get_engine()
-        self.migrations_path = os.path.join(os.getcwd(), "database", "migrations")
-
-    def run(self):
-        if not os.path.exists(self.migrations_path):
-            print("❌ No migrations directory found.")
-            return
-
-        for file in sorted(os.listdir(self.migrations_path)):
-            if file.endswith(".py") and file != "__init__.py":
-                migration_name = file.replace(".py", "")
-                file_path = os.path.join(self.migrations_path, file)
-
-                spec = importlib.util.spec_from_file_location(migration_name, file_path)
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-
-                if hasattr(module, "up"):
-                    print(f"🔼 Running migration: {migration_name}")
-                    module.up(self.engine)
-                else:
-                    print(f"⚠️ No up() method in {migration_name}")
 
 # ================================================================================
 # File: vendor/Illuminate/Database/Model.py
@@ -776,6 +559,223 @@ class QueryBuilder:
         finally:
             cursor.close()
             conn.close()
+
+# ================================================================================
+# File: vendor/Illuminate/Auth/JWT.py
+# ================================================================================
+"""
+JWT Authentication Helper
+"""
+
+
+class JWT:
+    """JWT token generator and validator"""
+    
+    @staticmethod
+    def get_secret() -> str:
+        """Get JWT secret from environment"""
+        secret = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
+        if secret == 'your-secret-key-change-this':
+            warnings.warn("Using default SECRET_KEY! Set SECRET_KEY in .env for production!")
+        return secret
+    
+    @staticmethod
+    def generate(user_id: int, email: str, role: str = 'user', expires_in: int = 24) -> str:
+        """
+        Generate JWT token
+        
+        Args:
+            user_id: User ID
+            email: User email
+            role: User role (default: 'user')
+            expires_in: Token expiration in hours (default: 24)
+        
+        Returns:
+            JWT token string
+        """
+        payload = {
+            'user_id': user_id,
+            'email': email,
+            'role': role,
+            'exp': datetime.utcnow() + timedelta(hours=expires_in),
+            'iat': datetime.utcnow()
+        }
+        
+        token = jwt.encode(payload, JWT.get_secret(), algorithm='HS256')
+        return token
+    
+    @staticmethod
+    def decode(token: str) -> Optional[Dict]:
+        """
+        Decode and validate JWT token
+        
+        Args:
+            token: JWT token string
+        
+        Returns:
+            Decoded payload dict or None if invalid
+        """
+        try:
+            payload = jwt.decode(token, JWT.get_secret(), algorithms=['HS256'])
+            return payload
+        except jwt.ExpiredSignatureError:
+            return None  # Token expired
+        except jwt.InvalidTokenError:
+            return None  # Invalid token
+    
+    @staticmethod
+    def verify(token: str) -> bool:
+        """
+        Verify if token is valid
+        
+        Args:
+            token: JWT token string
+        
+        Returns:
+            True if valid, False otherwise
+        """
+        return JWT.decode(token) is not None
+    
+    @staticmethod
+    def extract_from_header(auth_header: Optional[str]) -> Optional[str]:
+        """
+        Extract token from Authorization header
+        
+        Args:
+            auth_header: Authorization header value (e.g., "Bearer token123")
+        
+        Returns:
+            Token string or None
+        """
+        if not auth_header:
+            return None
+        
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0].lower() != 'bearer':
+            return None
+        
+        return parts[1]
+
+# ================================================================================
+# File: vendor/Illuminate/Console/Kernel.py
+# ================================================================================
+class Kernel:
+    def __init__(self):
+        self.commands = {
+            "migrate": MigrateCommand(),
+            "make:migration": MakeMigrationCommand(),
+        }
+
+    def handle(self, argv):
+        if len(argv) < 2:
+            print("❌ No command given")
+            return
+
+        cmd = argv[1]
+        args = argv[2:]
+
+        if cmd in self.commands:
+            self.commands[cmd].handle(args)
+        else:
+            print(f"❌ Command {cmd} not found")
+
+# ================================================================================
+# File: vendor/Illuminate/Database/Connection.py
+# ================================================================================
+# Illuminate/Database/Connection.py
+
+def get_engine(echo=False):
+    db_url = get_database_url()
+    engine = create_engine(db_url, echo=echo)
+
+    if not database_exists(engine.url):
+        print(f"⚡ Database not found. Creating: {engine.url.database}")
+        create_database(engine.url)
+
+    return engine
+
+# ================================================================================
+# File: vendor/Illuminate/Database/Migrations/MigrationRunner.py
+# ================================================================================
+class MigrationRunner:
+    def __init__(self):
+        self.conn = psycopg2.connect(
+            dbname=env("DB_DATABASE"),
+            user=env("DB_USERNAME"),
+            password=env("DB_PASSWORD"),
+            host=env("DB_HOST"),
+            port=env("DB_PORT"),
+        )
+        self.conn.autocommit = True
+        self.cursor = self.conn.cursor()
+
+        # Pastikan tabel migrations ada
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS migrations (
+                id SERIAL PRIMARY KEY,
+                migration VARCHAR(255) NOT NULL UNIQUE,
+                batch INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+    def run(self):
+        migrations_path = os.path.join(os.getcwd(), "database/migrations")
+        files = sorted([f for f in os.listdir(migrations_path) if f.endswith(".py")])
+
+        # Ambil batch terakhir
+        self.cursor.execute("SELECT COALESCE(MAX(batch), 0) FROM migrations")
+        current_batch = self.cursor.fetchone()[0] + 1
+
+        for file in files:
+            migration_name = file.replace(".py", "")
+
+            # cek apakah sudah dieksekusi
+            self.cursor.execute("SELECT 1 FROM migrations WHERE migration = %s", (migration_name,))
+            if self.cursor.fetchone():
+                print(f"⚠️ Skipped: {migration_name} already migrated")
+                continue
+
+            print(f"🔼 Running migration: {migration_name}")
+            module = __import__(f"database.migrations.{migration_name}", fromlist=["Migration"])
+            migration = module.Migration()
+            migration.up(self.cursor)
+
+            self.cursor.execute(
+                "INSERT INTO migrations (migration, batch) VALUES (%s, %s)",
+                (migration_name, current_batch),
+            )
+
+        self.cursor.close()
+        self.conn.close()
+
+# ================================================================================
+# File: vendor/Illuminate/Database/Migrator.py
+# ================================================================================
+class Migrator:
+    def __init__(self):
+        self.engine = get_engine()
+        self.migrations_path = os.path.join(os.getcwd(), "database", "migrations")
+
+    def run(self):
+        if not os.path.exists(self.migrations_path):
+            print("❌ No migrations directory found.")
+            return
+
+        for file in sorted(os.listdir(self.migrations_path)):
+            if file.endswith(".py") and file != "__init__.py":
+                migration_name = file.replace(".py", "")
+                file_path = os.path.join(self.migrations_path, file)
+
+                spec = importlib.util.spec_from_file_location(migration_name, file_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+
+                if hasattr(module, "up"):
+                    print(f"🔼 Running migration: {migration_name}")
+                    module.up(self.engine)
+                else:
+                    print(f"⚠️ No up() method in {migration_name}")
 
 # ================================================================================
 # File: vendor/Illuminate/Filesystem/Drivers/LocalDriver.py
@@ -2339,6 +2339,42 @@ def get_db():
         db.close()
 
 # ================================================================================
+# File: app/Http/Controllers/Controller.py
+# ================================================================================
+class Controller:
+    def view(self, template: str, request, context: dict = None):
+        context = context or {}
+        context["request"] = request
+        return View.make(template, context)
+
+    def redirect(self, url: str, status_code: int = 303):
+        """Laravel-style redirect helper"""
+        return RedirectResponse(url=url, status_code=status_code)
+
+    async def request(self, request):
+        """Auto detect request JSON/Form dan ignore _method."""
+        content_type = request.headers.get("content-type", "")
+        print("📌 Content-Type:", content_type)   # 👈 debug
+        print("📌 Request method:", request.method)
+
+        if "application/json" in content_type:
+            data = await request.json()
+            print("📥 JSON DATA:", data)   # 👈 debug
+            return data
+
+        elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+            raw = await request.body()
+            print("📥 RAW BODY:", raw.decode())
+            form = await request.form()
+            print("📥 RAW FORM:", form)
+            data = {k: v for k, v in form.items() if k != "_method"}
+            print("📥 CLEANED FORM DATA:", data)
+            return data
+
+        print("⚠️ Unknown body, returning empty dict")
+        return {}
+
+# ================================================================================
 # File: app/Http/Controllers/AuthController.py
 # ================================================================================
 """
@@ -2495,42 +2531,6 @@ class AuthController(Controller):
             return RedirectResponse(url='/login', status_code=302)
         
         return self.view('auth.profile', request, {'user': user})
-
-# ================================================================================
-# File: app/Http/Controllers/Controller.py
-# ================================================================================
-class Controller:
-    def view(self, template: str, request, context: dict = None):
-        context = context or {}
-        context["request"] = request
-        return View.make(template, context)
-
-    def redirect(self, url: str, status_code: int = 303):
-        """Laravel-style redirect helper"""
-        return RedirectResponse(url=url, status_code=status_code)
-
-    async def request(self, request):
-        """Auto detect request JSON/Form dan ignore _method."""
-        content_type = request.headers.get("content-type", "")
-        print("📌 Content-Type:", content_type)   # 👈 debug
-        print("📌 Request method:", request.method)
-
-        if "application/json" in content_type:
-            data = await request.json()
-            print("📥 JSON DATA:", data)   # 👈 debug
-            return data
-
-        elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
-            raw = await request.body()
-            print("📥 RAW BODY:", raw.decode())
-            form = await request.form()
-            print("📥 RAW FORM:", form)
-            data = {k: v for k, v in form.items() if k != "_method"}
-            print("📥 CLEANED FORM DATA:", data)
-            return data
-
-        print("⚠️ Unknown body, returning empty dict")
-        return {}
 
 # ================================================================================
 # File: app/Http/Controllers/DashboardController.py

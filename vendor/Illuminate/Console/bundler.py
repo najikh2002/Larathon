@@ -161,7 +161,9 @@ class PythonBundler:
 
         # Sort files by dependency order (basic heuristic)
         def sort_key(filepath: Path):
+            filepath_str = str(filepath)
             parts = filepath.parts
+            
             # Process in order: config, vendor, database, app, bootstrap, routes
             order = {
                 'config': 0,
@@ -172,7 +174,25 @@ class PythonBundler:
                 'routes': 5
             }
             first_dir = parts[-len(filepath.relative_to(self.project_root).parts)]
-            return (order.get(first_dir, 99), str(filepath))
+            dir_order = order.get(first_dir, 99)
+            
+            # Special handling for base classes - always process first within their directory
+            base_classes = [
+                'app/Http/Controllers/Controller.py',
+                'app/Models/Model.py',
+                'app/Http/Middleware/Middleware.py',
+                'vendor/Illuminate/Database/Model.py',
+                'vendor/Illuminate/Database/Migration.py',
+            ]
+            
+            # Check if this is a base class
+            for base_class in base_classes:
+                if filepath_str.endswith(base_class.replace('/', os.sep)):
+                    # Give base classes higher priority (lower number)
+                    return (dir_order, 0, str(filepath))
+            
+            # Regular files
+            return (dir_order, 1, str(filepath))
 
         files.sort(key=sort_key)
         return files
