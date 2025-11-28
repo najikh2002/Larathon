@@ -30,6 +30,7 @@ class PythonBundler:
             'generators.py',
             'vendor/Illuminate/Console/database.py',  # Only exclude the Console database.py
             'vendor/Illuminate/Support/Facades/Route.py',  # Use ImprovedRoute directly, not Facade
+            'vendor/Illuminate/Routing/Router.py',  # Old router - use ImprovedRouter instead
             'Commands/',
             'migrations/',
             'seeders/',
