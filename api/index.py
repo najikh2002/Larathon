@@ -443,19 +443,24 @@ def load_config():
 # vendor/Illuminate/View/View.py
 
 # Get views directory path (works both locally and in Vercel)
-# In Vercel, resources is copied to api/resources
+# Try multiple possible locations
 _current_file_dir = os.path.dirname(os.path.abspath(__file__))
-VIEWS_DIR = os.path.join(_current_file_dir, "resources", "views")
+_possible_paths = [
+    os.path.join(_current_file_dir, "resources", "views"),  # api/resources/views
+    os.path.join(os.getcwd(), "api", "resources", "views"), # /var/task/api/resources/views
+    os.path.join(os.getcwd(), "resources", "views"),        # /var/task/resources/views
+    "resources/views",                                       # relative fallback
+]
 
-# Debug: print path information
-print(f"Current file: {__file__}")
-print(f"Current file dir: {_current_file_dir}")
-print(f"VIEWS_DIR: {VIEWS_DIR}")
-print(f"VIEWS_DIR exists: {os.path.exists(VIEWS_DIR)}")
+VIEWS_DIR = None
+for path in _possible_paths:
+    if os.path.exists(path):
+        VIEWS_DIR = path
+        break
 
-if not os.path.exists(VIEWS_DIR):
-    VIEWS_DIR = "resources/views"  # fallback for local development
-    print(f"Using fallback VIEWS_DIR: {VIEWS_DIR}")
+if VIEWS_DIR is None:
+    # Last resort: use first path and let it fail with clear error
+    VIEWS_DIR = _possible_paths[0]
 
 templates = Jinja2Templates(directory=VIEWS_DIR)
 
@@ -474,9 +479,23 @@ class View:
 class ViewFactory:
     def __init__(self):
         # atur folder templates (resources/views) - works in Vercel and local
-        views_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "views")
-        if not os.path.exists(views_path):
-            views_path = os.path.join(os.getcwd(), "resources", "views")
+        _current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        _possible_paths = [
+            os.path.join(_current_file_dir, "resources", "views"),
+            os.path.join(os.getcwd(), "api", "resources", "views"),
+            os.path.join(os.getcwd(), "resources", "views"),
+            "resources/views",
+        ]
+
+        views_path = None
+        for path in _possible_paths:
+            if os.path.exists(path):
+                views_path = path
+                break
+
+        if views_path is None:
+            views_path = _possible_paths[0]
+
         self.env = Environment(
             loader=FileSystemLoader(views_path),
             autoescape=select_autoescape(['html', 'xml'])
@@ -780,9 +799,22 @@ class RouteServiceProvider:
 class ViewServiceProvider:
     def register(self, app):
         # Get views directory path (works both locally and in Vercel)
-        views_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "views")
-        if not os.path.exists(views_path):
-            views_path = "resources/views"
+        _current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        _possible_paths = [
+            os.path.join(_current_file_dir, "resources", "views"),
+            os.path.join(os.getcwd(), "api", "resources", "views"),
+            os.path.join(os.getcwd(), "resources", "views"),
+            "resources/views",
+        ]
+
+        views_path = None
+        for path in _possible_paths:
+            if os.path.exists(path):
+                views_path = path
+                break
+
+        if views_path is None:
+            views_path = _possible_paths[0]
 
         env = Environment(
             loader=FileSystemLoader(views_path),
