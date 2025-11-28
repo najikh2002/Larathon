@@ -5,6 +5,7 @@ Bundles all application code into a single file for Vercel deployment
 import os
 import re
 import ast
+import shutil
 from pathlib import Path
 from typing import Set, List, Dict
 
@@ -166,6 +167,41 @@ class PythonBundler:
         files.sort(key=sort_key)
         return files
 
+    def copy_resources(self, output_dir: Path):
+        """Copy resources directory to output directory"""
+        source_resources = self.project_root / "resources"
+        dest_resources = output_dir / "resources"
+
+        if source_resources.exists():
+            # Remove existing resources in output if exists
+            if dest_resources.exists():
+                shutil.rmtree(dest_resources)
+            
+            # Copy entire resources directory
+            shutil.copytree(source_resources, dest_resources)
+            print(f"✅ Copied resources/ to {dest_resources}")
+        else:
+            print("⚠️  No resources/ directory found")
+
+    def copy_static_files(self, output_dir: Path):
+        """Copy public/static directory to output directory"""
+        source_static = self.project_root / "public" / "static"
+        dest_static = output_dir / "public" / "static"
+
+        if source_static.exists():
+            # Remove existing static in output if exists
+            if dest_static.exists():
+                shutil.rmtree(dest_static)
+            
+            # Create public directory
+            dest_static.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Copy static directory
+            shutil.copytree(source_static, dest_static)
+            print(f"✅ Copied public/static/ to {dest_static}")
+        else:
+            print("⚠️  No public/static/ directory found")
+
     def build(self, output_file: str = "api/index.py"):
         """Build the bundle"""
         print("🔨 Starting Larathon bundler...")
@@ -214,6 +250,11 @@ class PythonBundler:
         print(f"✅ Bundle created: {output_path}")
         print(f"📊 Total files bundled: {len(self.processed_files)}")
         print(f"📦 Bundle size: {os.path.getsize(output_path) / 1024:.2f} KB")
+
+        # Copy resources and static files
+        output_dir = output_path.parent
+        self.copy_resources(output_dir)
+        self.copy_static_files(output_dir)
 
         return output_path
 
