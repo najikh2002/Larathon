@@ -757,7 +757,10 @@ class RouteServiceProvider:
         # swap ke facade
         Route.swap(router_instance)
 
-        # load definisi routes
+        # load definisi routes (from routes/web.py)
+        Route.get("/", WelcomeController, "index")
+        Route.resource("todos", TodoController)
+        Route.resource("posts", PostController)
 
         # setelah semua route terdaftar, baru include ke FastAPI
         app.include_router(router_instance.router)
@@ -821,16 +824,6 @@ def create_app():
         app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     return app
-
-# ================================================================================
-# File: routes/web.py
-# ================================================================================
-# routes/web.py
-
-# Definisi semua route di sini
-Route.get("/", WelcomeController, "index")
-Route.resource("todos", TodoController)
-Route.resource("posts", PostController)
 
 # ================================================================================
 # Application Entry Point for Vercel
