@@ -1,12 +1,32 @@
+# Python virtual environment
 env/
-.env
-*.pyc
+venv/
 __pycache__/
-.git/
-.gitignore
-README.md
+*.pyc
+*.pyo
+*.pyd
+
+# Development files
+.env
+.env.local
 .vscode/
 .idea/
+
+# Database files
 *.sqlite
-database.sqlite
+*.db
+
+# Test files
 tests/
+
+# Cache
+.pytest_cache/
+*.log
+
+# Local development
+database/migrations/__pycache__/
+config/__pycache__/
+routes/__pycache__/
+app/__pycache__/
+vendor/__pycache__/
+bootstrap/__pycache__/
