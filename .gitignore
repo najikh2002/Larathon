@@ -44,6 +44,5 @@ htmlcov/
 # Vercel
 .vercel/
 
-# Build output - ignore api/ but keep .dist/ for deployment
-api/
-# Note: .dist/ is tracked in git for Vercel deployment
+# Build output
+# Note: api/ folder contains build output and is tracked for Vercel deployment
