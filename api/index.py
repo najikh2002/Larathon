@@ -2052,16 +2052,6 @@ def response(data: dict, status: int = 200):
     return Response.json(data, status)
 
 # ================================================================================
-# File: vendor/Illuminate/Support/Facades/Route.py
-# ================================================================================
-# vendor/Illuminate/Support/Facades/Route.py
-
-class Route(Facade):
-    @classmethod
-    def get_facade_accessor(cls):
-        return "router"
-
-# ================================================================================
 # File: vendor/Illuminate/Support/Facades/View.py
 # ================================================================================
 # vendor/Illuminate/Support/Facades/View.py
