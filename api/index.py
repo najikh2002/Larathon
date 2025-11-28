@@ -3434,56 +3434,6 @@ class ViewServiceProvider:
         Facade._resolved["view"] = ViewManager()
 
 # ================================================================================
-# File: bootstrap/app.py
-# ================================================================================
-def create_app():
-    app = FastAPI(
-        title="Larathon",
-        description="A Laravel-inspired Python web framework",
-        version="1.0.0"
-    )
-
-    register_providers(app)
-
-    # MOUNT STATIC FILES - try multiple possible locations
-    _current_file_dir = os.path.dirname(os.path.abspath(__file__))
-    _possible_static_paths = [
-        os.path.join(_current_file_dir, "..", "public", "static"),  # bootstrap/../public/static
-        os.path.join(os.getcwd(), "public", "static"),              # /project/public/static
-        os.path.join(os.getcwd(), "api", "public", "static"),       # /var/task/api/public/static
-        "public/static",                                             # relative fallback
-    ]
-
-    static_dir = None
-    for path in _possible_static_paths:
-        if os.path.exists(path) and os.path.isdir(path):
-            static_dir = path
-            break
-
-    if static_dir:
-        app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-    return app
-
-
-# Create app instance for uvicorn
-app = create_app()
-
-# ================================================================================
-# File: bootstrap/providers.py
-# ================================================================================
-def register_providers(app):
-    providers = [
-        AppServiceProvider(),
-        AuthServiceProvider(),
-        RouteServiceProvider(),
-        ViewServiceProvider(),
-    ]
-
-    for provider in providers:
-        provider.register(app)
-
-# ================================================================================
 # File: routes/web.py
 # ================================================================================
 """
@@ -3560,9 +3510,58 @@ def route(name: str, params: dict = None) -> str:
     return Route.get_named_route(name, params)
 
 # ================================================================================
+# File: bootstrap/providers.py
+# ================================================================================
+def register_providers(app):
+    providers = [
+        AppServiceProvider(),
+        AuthServiceProvider(),
+        RouteServiceProvider(),
+        ViewServiceProvider(),
+    ]
+
+    for provider in providers:
+        provider.register(app)
+
+# ================================================================================
+# File: bootstrap/app.py
+# ================================================================================
+def create_app():
+    app = FastAPI(
+        title="Larathon",
+        description="A Laravel-inspired Python web framework",
+        version="1.0.0"
+    )
+
+    register_providers(app)
+
+    # MOUNT STATIC FILES - try multiple possible locations
+    _current_file_dir = os.path.dirname(os.path.abspath(__file__))
+    _possible_static_paths = [
+        os.path.join(_current_file_dir, "..", "public", "static"),  # bootstrap/../public/static
+        os.path.join(os.getcwd(), "public", "static"),              # /project/public/static
+        os.path.join(os.getcwd(), "api", "public", "static"),       # /var/task/api/public/static
+        "public/static",                                             # relative fallback
+    ]
+
+    static_dir = None
+    for path in _possible_static_paths:
+        if os.path.exists(path) and os.path.isdir(path):
+            static_dir = path
+            break
+
+    if static_dir:
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    return app
+
+
+# App instance will be created at end of bundle by bundler
+# Don't create here to avoid duplication
+
+# ================================================================================
 # Application Entry Point for Vercel
 # ================================================================================
 
-# Vercel automatically detects and runs FastAPI apps
-# Export 'app' instance directly - no wrapper needed
+# Create app instance (all dependencies should be loaded by now)
 app = create_app()

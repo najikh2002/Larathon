@@ -33,5 +33,5 @@ def create_app():
     return app
 
 
-# Create app instance for uvicorn
-app = create_app()
+# App instance will be created at end of bundle by bundler
+# Don't create here to avoid duplication

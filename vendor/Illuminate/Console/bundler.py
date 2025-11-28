@@ -164,14 +164,15 @@ class PythonBundler:
             filepath_str = str(filepath)
             parts = filepath.parts
             
-            # Process in order: config, vendor, database, app, bootstrap, routes
+            # Process in order: config, vendor, database, app, routes, bootstrap
+            # Bootstrap MUST be last because it calls register_providers and create_app
             order = {
                 'config': 0,
                 'vendor': 1,
                 'database': 2,
                 'app': 3,
-                'bootstrap': 4,
-                'routes': 5
+                'routes': 4,
+                'bootstrap': 5,  # Bootstrap last!
             }
             first_dir = parts[-len(filepath.relative_to(self.project_root).parts)]
             dir_order = order.get(first_dir, 99)
@@ -189,6 +190,13 @@ class PythonBundler:
                 'app/Http/Middleware/AuthMiddleware.py',
                 'app/Http/Middleware/MethodOverrideMiddleware.py',
             ]
+            
+            # Bootstrap files order is critical: providers.py BEFORE app.py
+            # Because app.py's create_app() calls register_providers() from providers.py
+            if filepath_str.endswith('bootstrap/providers.py'.replace('/', os.sep)):
+                return (dir_order, 0, str(filepath))  # Providers first
+            elif filepath_str.endswith('bootstrap/app.py'.replace('/', os.sep)):
+                return (dir_order, 1, str(filepath))  # App second
             
             # Check if this is a base class (highest priority)
             for base_class in base_classes:
@@ -283,8 +291,7 @@ class PythonBundler:
             f.write("\n# " + "=" * 80 + "\n")
             f.write("# Application Entry Point for Vercel\n")
             f.write("# " + "=" * 80 + "\n\n")
-            f.write("# Vercel automatically detects and runs FastAPI apps\n")
-            f.write("# Export 'app' instance directly - no wrapper needed\n")
+            f.write("# Create app instance (all dependencies should be loaded by now)\n")
             f.write("app = create_app()\n")
 
         print(f"✅ Bundle created: {output_path}")
