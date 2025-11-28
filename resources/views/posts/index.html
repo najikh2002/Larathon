@@ -1,0 +1,207 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}My Posts - Larathon{% endblock %}
+
+{% block styles %}
+<style>
+    .posts-container {
+        background: white;
+        padding: 40px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .posts-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+    
+    .posts-header h2 {
+        color: #333;
+    }
+    
+    .btn-primary {
+        padding: 12px 24px;
+        background: #667eea;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        transition: background 0.3s;
+    }
+    
+    .btn-primary:hover {
+        background: #5568d3;
+    }
+    
+    .posts-grid {
+        display: grid;
+        gap: 20px;
+    }
+    
+    .post-card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 200px 1fr auto;
+        gap: 20px;
+        transition: box-shadow 0.3s;
+    }
+    
+    .post-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .post-image {
+        width: 200px;
+        height: 150px;
+        background: #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+    }
+    
+    .post-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .post-content {
+        padding: 20px 0;
+    }
+    
+    .post-content h3 {
+        color: #333;
+        margin-bottom: 10px;
+    }
+    
+    .post-content p {
+        color: #666;
+        margin-bottom: 10px;
+        line-height: 1.5;
+    }
+    
+    .post-meta {
+        font-size: 14px;
+        color: #999;
+    }
+    
+    .post-actions {
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        justify-content: center;
+    }
+    
+    .btn-small {
+        padding: 8px 16px;
+        border-radius: 5px;
+        text-decoration: none;
+        text-align: center;
+        transition: background 0.3s;
+        font-size: 14px;
+    }
+    
+    .btn-edit {
+        background: #667eea;
+        color: white;
+    }
+    
+    .btn-edit:hover {
+        background: #5568d3;
+    }
+    
+    .btn-delete {
+        background: #dc3545;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .btn-delete:hover {
+        background: #c82333;
+    }
+    
+    .post-status {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-top: 10px;
+    }
+    
+    .post-status.published {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .post-status.draft {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+    }
+    
+    .empty-state h3 {
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="posts-container">
+    <div class="posts-header">
+        <h2>📚 My Posts</h2>
+        <a href="/posts/create" class="btn-primary">✍️ Create New Post</a>
+    </div>
+    
+    {% if posts %}
+    <div class="posts-grid">
+        {% for post in posts %}
+        <div class="post-card">
+            <div class="post-image">
+                {% if post.featured_image %}
+                <img src="{{ post.featured_image_url }}" alt="{{ post.title }}">
+                {% else %}
+                📄
+                {% endif %}
+            </div>
+            
+            <div class="post-content">
+                <h3>{{ post.title }}</h3>
+                <p>{{ post.excerpt or 'No excerpt' }}</p>
+                <div class="post-meta">
+                    Created: {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else 'Unknown' }}
+                </div>
+                <span class="post-status {{ post.status }}">{{ post.status }}</span>
+            </div>
+            
+            <div class="post-actions">
+                <a href="/posts/{{ post.id }}/edit" class="btn-small btn-edit">Edit</a>
+                <form method="POST" action="/posts/{{ post.id }}/delete" style="margin: 0;">
+                    <button type="submit" class="btn-small btn-delete" 
+                            onclick="return confirm('Delete this post?')">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No posts yet</h3>
+        <p>Create your first post to get started!</p>
+        <a href="/posts/create" class="btn-primary" style="margin-top: 20px; display: inline-block;">Create Post</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Test - Larathon</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-box {
+            background: #f0f0f0;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #667eea;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+        .result {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 File Upload Test</h1>
+    
+    <div class="test-box">
+        <h2>Test 1: Simple Form Upload</h2>
+        <form id="simpleForm" action="/storage/upload" method="POST" enctype="multipart/form-data">
+            <input type="file" name="file" id="fileInput" required>
+            <br>
+            <button type="submit">Upload (Form Submit)</button>
+        </form>
+    </div>
+    
+    <div class="test-box">
+        <h2>Test 2: JavaScript Fetch Upload</h2>
+        <input type="file" id="jsFileInput">
+        <br>
+        <button onclick="uploadWithJS()">Upload (JavaScript Fetch)</button>
+    </div>
+    
+    <div class="test-box">
+        <h2>Test 3: XMLHttpRequest Upload</h2>
+        <input type="file" id="xhrFileInput">
+        <br>
+        <button onclick="uploadWithXHR()">Upload (XMLHttpRequest)</button>
+    </div>
+    
+    <div id="result" class="result" style="display: none;">
+        <h3>Result:</h3>
+        <pre id="resultText"></pre>
+    </div>
+    
+    <script>
+        function showResult(data) {
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('resultText').textContent = JSON.stringify(data, null, 2);
+        }
+        
+        async function uploadWithJS() {
+            const fileInput = document.getElementById('jsFileInput');
+            if (!fileInput.files.length) {
+                alert('Please select a file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            console.log('Uploading with Fetch API...');
+            
+            try {
+                const response = await fetch('/storage/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                console.log('Response:', data);
+                showResult(data);
+                
+                if (response.ok && !data.error) {
+                    window.location.href = '/storage';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showResult({error: error.message});
+            }
+        }
+        
+        function uploadWithXHR() {
+            const fileInput = document.getElementById('xhrFileInput');
+            if (!fileInput.files.length) {
+                alert('Please select a file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            console.log('Uploading with XMLHttpRequest...');
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/storage/upload', true);
+            
+            xhr.onload = function() {
+                console.log('Response:', xhr.responseText);
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    showResult(data);
+                    
+                    if (xhr.status === 200 && !data.error) {
+                        window.location.href = '/storage';
+                    }
+                } catch (e) {
+                    showResult({error: 'Invalid JSON response', raw: xhr.responseText});
+                }
+            };
+            
+            xhr.onerror = function() {
+                console.error('Upload failed');
+                showResult({error: 'Network error'});
+            };
+            
+            xhr.send(formData);
+        }
+    </script>
+</body>
+</html>

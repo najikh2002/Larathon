@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct Login Test</title>
+</head>
+<body>
+    <h1>Direct Login Test</h1>
+    <form method="POST" action="http://localhost:8000/login">
+        <div>
+            <label>Email:</label>
+            <input type="email" name="email" value="admin@larathon.app" required>
+        </div>
+        <div>
+            <label>Password:</label>
+            <input type="password" name="password" value="admin123" required>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+    
+    <h2>Test dengan curl:</h2>
+    <pre>
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=admin@larathon.app&password=admin123"
+    </pre>
+</body>
+</html>

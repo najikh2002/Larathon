@@ -46,3 +46,8 @@ htmlcov/
 
 # Build output
 # Note: api/ folder contains build output and is tracked for Vercel deployment
+storage/app/*
+!storage/app/.gitkeep
+!storage/app/public
+storage/app/public/*
+!storage/app/public/.gitkeep

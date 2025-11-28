@@ -4,17 +4,21 @@ from fastapi.staticfiles import StaticFiles
 import os
 
 def create_app():
-    app = FastAPI()
+    app = FastAPI(
+        title="Larathon",
+        description="A Laravel-inspired Python web framework",
+        version="1.0.0"
+    )
 
     register_providers(app)
 
     # MOUNT STATIC FILES - try multiple possible locations
     _current_file_dir = os.path.dirname(os.path.abspath(__file__))
     _possible_static_paths = [
-        os.path.join(_current_file_dir, "public", "static"),     # api/public/static
-        os.path.join(os.getcwd(), "api", "public", "static"),    # /var/task/api/public/static
-        os.path.join(os.getcwd(), "public", "static"),           # /var/task/public/static
-        "public/static",                                          # relative fallback
+        os.path.join(_current_file_dir, "..", "public", "static"),  # bootstrap/../public/static
+        os.path.join(os.getcwd(), "public", "static"),              # /project/public/static
+        os.path.join(os.getcwd(), "api", "public", "static"),       # /var/task/api/public/static
+        "public/static",                                             # relative fallback
     ]
 
     static_dir = None
@@ -29,5 +33,5 @@ def create_app():
     return app
 
 
-# Don't create app instance at module level - let the entry point handle it
-# This prevents issues with bundling and allows proper initialization order
+# Create app instance for uvicorn
+app = create_app()

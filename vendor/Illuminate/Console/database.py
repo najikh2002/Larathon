@@ -184,7 +184,16 @@ def migrate():
         if hasattr(module, "Migration"):
             print(f"🔼 Running migration: {migration_name}")
             migration = module.Migration()
-            migration.up(engine)
+            migration.set_engine(engine)  # Set engine for self.execute() style
+            
+            # Check if up() accepts engine parameter
+            import inspect
+            sig = inspect.signature(migration.up)
+            if 'engine' in sig.parameters:
+                migration.up(engine)  # Pass engine for compatibility
+            else:
+                migration.up()  # Call without engine (uses self._engine)
+            
             log_migration(engine, core, batch)
         # Or check if module has up() function directly (old style)
         elif hasattr(module, "up"):
@@ -193,3 +202,20 @@ def migrate():
             log_migration(engine, core, batch)
         else:
             print(f"⚠️ No up() method or Migration class in {migration_name}")
+
+
+def run_seeders():
+    """Run database seeders"""
+    import asyncio
+    from database.seeders.DatabaseSeeder import DatabaseSeeder
+    
+    print("\n🌱 Running database seeders...")
+    
+    try:
+        seeder = DatabaseSeeder()
+        asyncio.run(seeder.run())
+    except Exception as e:
+        print(f"❌ Error running seeders: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
