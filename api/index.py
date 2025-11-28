@@ -22,7 +22,6 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from dotenv import load_dotenv
-from mangum import Mangum
 
 # Database imports
 from sqlalchemy import create_engine, Column, Integer, String, TIMESTAMP
@@ -823,9 +822,6 @@ def create_app():
 
     return app
 
-
-app = create_app()
-
 # ================================================================================
 # File: routes/web.py
 # ================================================================================
@@ -842,6 +838,3 @@ Route.resource("posts", PostController)
 
 # Create FastAPI app instance
 app = create_app()
-
-# Vercel/AWS Lambda handler using Mangum
-handler = Mangum(app, lifespan="off")
