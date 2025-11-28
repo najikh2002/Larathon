@@ -444,9 +444,18 @@ def load_config():
 
 # Get views directory path (works both locally and in Vercel)
 # In Vercel, resources is copied to api/resources
-VIEWS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "views")
+_current_file_dir = os.path.dirname(os.path.abspath(__file__))
+VIEWS_DIR = os.path.join(_current_file_dir, "resources", "views")
+
+# Debug: print path information
+print(f"Current file: {__file__}")
+print(f"Current file dir: {_current_file_dir}")
+print(f"VIEWS_DIR: {VIEWS_DIR}")
+print(f"VIEWS_DIR exists: {os.path.exists(VIEWS_DIR)}")
+
 if not os.path.exists(VIEWS_DIR):
     VIEWS_DIR = "resources/views"  # fallback for local development
+    print(f"Using fallback VIEWS_DIR: {VIEWS_DIR}")
 
 templates = Jinja2Templates(directory=VIEWS_DIR)
 
