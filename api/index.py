@@ -653,11 +653,23 @@ class PostController(Controller):
 # ================================================================================
 # app/Http/Controllers/TodoController.py
 
-engine = get_engine()
-SessionLocal = sessionmaker(bind=engine)
+# Initialize database engine and session (with error handling for serverless)
+try:
+    engine = get_engine()
+    SessionLocal = sessionmaker(bind=engine)
+    DB_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️  Database connection failed: {e}")
+    SessionLocal = None
+    DB_AVAILABLE = False
 
 class TodoController(Controller):
     def index(self, request):
+        if not DB_AVAILABLE:
+            # Demo data when database is not available
+            todos = []
+            return self.view("todos.index", request, {"todos": todos})
+
         session = SessionLocal()
         todos = session.query(Todo).all()
         session.close()
@@ -667,6 +679,9 @@ class TodoController(Controller):
         return self.view("todos.create", request)
 
     async def store(self, request):
+        if not DB_AVAILABLE:
+            return {"error": "Database not available"}
+
         data = await self.request(request)
         print("STORE DATA:", data)  # <-- debug
         session = SessionLocal()
@@ -677,18 +692,27 @@ class TodoController(Controller):
         return self.redirect("/todos")
 
     def show(self, request, id):
+        if not DB_AVAILABLE:
+            return {"error": "Database not available"}
+
         session = SessionLocal()
         todo = session.query(Todo).get(id)
         session.close()
         return self.view("todos.show", request, {"todo": todo})
 
     def edit(self, request, id):
+        if not DB_AVAILABLE:
+            return {"error": "Database not available"}
+
         session = SessionLocal()
         todo = session.query(Todo).get(id)
         session.close()
         return self.view("todos.edit", request, {"todo": todo})
 
     async def update(self, request, id):
+        if not DB_AVAILABLE:
+            return {"error": "Database not available"}
+
         data = await self.request(request)
         session = SessionLocal()
         todo = session.query(Todo).get(id)
@@ -699,6 +723,9 @@ class TodoController(Controller):
         return self.redirect("/todos")
 
     def destroy(self, request, id):
+        if not DB_AVAILABLE:
+            return {"error": "Database not available"}
+
         session = SessionLocal()
         todo = session.query(Todo).get(id)
         if todo:
