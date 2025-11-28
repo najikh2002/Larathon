@@ -253,9 +253,12 @@ class PythonBundler:
             f.write("# Application Entry Point for Vercel\n")
             f.write("# " + "=" * 80 + "\n\n")
             f.write("# Create FastAPI app instance\n")
-            f.write("app = create_app()\n\n")
-            f.write("# Vercel handler\n")
-            f.write("handler = app\n")
+            f.write("_app = create_app()\n\n")
+            f.write("# Wrap with Mangum for serverless compatibility\n")
+            f.write("from mangum import Mangum\n")
+            f.write("handler = Mangum(_app, lifespan=\"off\")\n\n")
+            f.write("# Export app for direct access (local development)\n")
+            f.write("app = _app\n")
 
         print(f"✅ Bundle created: {output_path}")
         print(f"📊 Total files bundled: {len(self.processed_files)}")
@@ -265,8 +268,21 @@ class PythonBundler:
         output_dir = output_path.parent
         self.copy_resources(output_dir)
         self.copy_static_files(output_dir)
+        self.copy_requirements(output_dir)
 
         return output_path
+    
+    def copy_requirements(self, output_dir: Path):
+        """Copy requirements.txt to output directory"""
+        source_req = self.project_root / "requirements.txt"
+        dest_req = output_dir / "requirements.txt"
+
+        if source_req.exists():
+            import shutil
+            shutil.copy2(source_req, dest_req)
+            print(f"✅ Copied requirements.txt to {dest_req}")
+        else:
+            print("⚠️  No requirements.txt found")
 
 
 def bundle_application(project_root: str = "."):
