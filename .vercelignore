@@ -1,0 +1,12 @@
+env/
+.env
+*.pyc
+__pycache__/
+.git/
+.gitignore
+README.md
+.vscode/
+.idea/
+*.sqlite
+database.sqlite
+tests/

@@ -1,0 +1,224 @@
+"""
+Larathon Build Bundler
+Bundles all application code into a single file for Vercel deployment
+"""
+import os
+import re
+import ast
+from pathlib import Path
+from typing import Set, List, Dict
+
+
+class PythonBundler:
+    def __init__(self, project_root: str):
+        self.project_root = Path(project_root)
+        self.processed_files: Set[str] = set()
+        self.bundle_content: List[str] = []
+        self.external_imports: Set[str] = set()
+
+        # Directories to include in bundle
+        self.include_dirs = ['app', 'config', 'bootstrap', 'vendor', 'database', 'routes']
+
+        # Files to exclude
+        self.exclude_patterns = [
+            '__pycache__',
+            '.pyc',
+            'tests/',
+            'artisan.py',
+            'bundler.py',
+            'generators.py',
+            'database.py',
+            'Commands/',
+            'migrations/',
+            'seeders/',
+        ]
+
+    def should_include_file(self, filepath: str) -> bool:
+        """Check if file should be included in bundle"""
+        filepath_str = str(filepath)
+
+        # Exclude patterns
+        for pattern in self.exclude_patterns:
+            if pattern in filepath_str:
+                return False
+
+        # Only include files from specified directories
+        relative_path = Path(filepath).relative_to(self.project_root)
+        first_dir = str(relative_path.parts[0]) if relative_path.parts else ""
+
+        return first_dir in self.include_dirs
+
+    def extract_imports(self, content: str) -> tuple:
+        """Extract import statements and categorize them"""
+        local_imports = []
+        external_imports = []
+
+        try:
+            tree = ast.parse(content)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        module_name = alias.name.split('.')[0]
+                        if module_name in self.include_dirs:
+                            local_imports.append(ast.unparse(node))
+                        else:
+                            external_imports.append(ast.unparse(node))
+                            self.external_imports.add(ast.unparse(node))
+
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        module_name = node.module.split('.')[0]
+                        if module_name in self.include_dirs:
+                            local_imports.append(ast.unparse(node))
+                        else:
+                            external_imports.append(ast.unparse(node))
+                            self.external_imports.add(ast.unparse(node))
+        except:
+            # Fallback to regex if AST parsing fails
+            import_pattern = r'^(?:from\s+[\w.]+\s+)?import\s+.+$'
+            for line in content.split('\n'):
+                if re.match(import_pattern, line.strip()):
+                    if any(d in line for d in self.include_dirs):
+                        local_imports.append(line.strip())
+                    else:
+                        external_imports.append(line.strip())
+                        self.external_imports.add(line.strip())
+
+        return local_imports, external_imports
+
+    def remove_imports(self, content: str) -> str:
+        """Remove all import statements from content"""
+        lines = content.split('\n')
+        result = []
+        in_multiline_import = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Skip import lines
+            if stripped.startswith('import ') or stripped.startswith('from '):
+                if '(' in line and ')' not in line:
+                    in_multiline_import = True
+                elif ')' in line:
+                    in_multiline_import = False
+                continue
+
+            if in_multiline_import:
+                if ')' in line:
+                    in_multiline_import = False
+                continue
+
+            result.append(line)
+
+        return '\n'.join(result)
+
+    def process_file(self, filepath: Path) -> str:
+        """Process a single Python file"""
+        if str(filepath) in self.processed_files:
+            return ""
+
+        self.processed_files.add(str(filepath))
+
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Remove imports
+        content = self.remove_imports(content)
+
+        # Remove empty lines at start/end
+        content = content.strip()
+
+        if not content:
+            return ""
+
+        # Add file header comment
+        relative_path = filepath.relative_to(self.project_root)
+        header = f"\n# {'=' * 80}\n# File: {relative_path}\n# {'=' * 80}\n"
+
+        return header + content + "\n"
+
+    def collect_files(self) -> List[Path]:
+        """Collect all Python files to bundle"""
+        files = []
+
+        for include_dir in self.include_dirs:
+            dir_path = self.project_root / include_dir
+            if dir_path.exists():
+                for py_file in dir_path.rglob('*.py'):
+                    if self.should_include_file(py_file):
+                        files.append(py_file)
+
+        # Sort files by dependency order (basic heuristic)
+        def sort_key(filepath: Path):
+            parts = filepath.parts
+            # Process in order: config, vendor, database, app, bootstrap, routes
+            order = {
+                'config': 0,
+                'vendor': 1,
+                'database': 2,
+                'app': 3,
+                'bootstrap': 4,
+                'routes': 5
+            }
+            first_dir = parts[-len(filepath.relative_to(self.project_root).parts)]
+            return (order.get(first_dir, 99), str(filepath))
+
+        files.sort(key=sort_key)
+        return files
+
+    def build(self, output_file: str = "api/index.py"):
+        """Build the bundle"""
+        print("🔨 Starting Larathon bundler...")
+
+        # Collect all files
+        files = self.collect_files()
+        print(f"📦 Found {len(files)} files to bundle")
+
+        # Process each file
+        for filepath in files:
+            content = self.process_file(filepath)
+            if content:
+                self.bundle_content.append(content)
+
+        # Build final bundle
+        output_path = self.project_root / output_file
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # Write header
+            f.write('"""\n')
+            f.write('Larathon Application Bundle\n')
+            f.write('Auto-generated by: python artisan.py build\n')
+            f.write('DO NOT EDIT THIS FILE MANUALLY\n')
+            f.write('"""\n\n')
+
+            # Write external imports
+            f.write("# External Dependencies\n")
+            for imp in sorted(self.external_imports):
+                f.write(f"{imp}\n")
+            f.write("\n")
+
+            # Write bundled code
+            for content in self.bundle_content:
+                f.write(content)
+
+            # Write application entry point
+            f.write("\n# " + "=" * 80 + "\n")
+            f.write("# Application Entry Point for Vercel\n")
+            f.write("# " + "=" * 80 + "\n\n")
+            f.write("# Create FastAPI app instance\n")
+            f.write("app = create_app()\n\n")
+            f.write("# Vercel handler\n")
+            f.write("handler = app\n")
+
+        print(f"✅ Bundle created: {output_path}")
+        print(f"📊 Total files bundled: {len(self.processed_files)}")
+        print(f"📦 Bundle size: {os.path.getsize(output_path) / 1024:.2f} KB")
+
+        return output_path
+
+
+def bundle_application(project_root: str = "."):
+    """Main function to bundle the application"""
+    bundler = PythonBundler(project_root)
+    return bundler.build()
