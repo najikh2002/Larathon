@@ -16,10 +16,15 @@ class StorageManager:
         
     def configure(self, config: dict):
         """Configure storage from config dict"""
-        from config import filesystems
-        
-        self.default_disk = filesystems.default
-        self.disk_configs = filesystems.disks
+        # In bundled production, import from global scope
+        try:
+            from config import filesystems
+            self.default_disk = filesystems.default
+            self.disk_configs = filesystems.disks
+        except:
+            # Fallback: use passed config or defaults
+            self.default_disk = config.get('default', 'local')
+            self.disk_configs = config.get('disks', {})
         
     def disk(self, name: Optional[str] = None):
         """Get a disk instance"""
@@ -32,12 +37,14 @@ class StorageManager:
     
     def _create_driver(self, disk_name: str):
         """Create driver instance for disk"""
-        from config import filesystems
+        # Use cached disk_configs instead of importing again
+        if not hasattr(self, 'disk_configs'):
+            self.disk_configs = {}
         
-        if disk_name not in filesystems.disks:
+        if disk_name not in self.disk_configs:
             raise ValueError(f"Disk '{disk_name}' is not configured")
         
-        config = filesystems.disks[disk_name]
+        config = self.disk_configs[disk_name]
         driver_type = config.get("driver")
         
         if driver_type == "local":

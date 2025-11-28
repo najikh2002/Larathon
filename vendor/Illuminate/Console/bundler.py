@@ -28,8 +28,9 @@ class PythonBundler:
             'artisan.py',
             'bundler.py',
             'generators.py',
-            'vendor/Illuminate/Console/database.py',  # Only exclude the Console database.py
+            'vendor/Illuminate/Console/',  # Exclude all CLI commands (not needed in production)
             'vendor/Illuminate/Support/Facades/Route.py',  # Use ImprovedRoute directly, not Facade
+            'vendor/Illuminate/Support/Facades/View.py',  # Use direct View class, not Facade
             'vendor/Illuminate/Routing/Router.py',  # Old router - use ImprovedRouter instead
             'Commands/',
             'migrations/',
@@ -185,6 +186,7 @@ class PythonBundler:
                 'app/Models/Model.py',
                 'vendor/Illuminate/Database/Model.py',
                 'vendor/Illuminate/Database/Migration.py',
+                'vendor/Illuminate/View/View.py',  # BaseView must be defined before facades
             ]
             
             # Middleware must be processed before controllers that use them

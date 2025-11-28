@@ -700,6 +700,42 @@ class PendingRoute:
         )
 
 # ================================================================================
+# File: vendor/Illuminate/View/View.py
+# ================================================================================
+# vendor/Illuminate/View/View.py
+
+# Try multiple possible template locations for Vercel compatibility
+_current_file_dir = os.path.dirname(os.path.abspath(__file__))
+_possible_paths = [
+    os.path.join(_current_file_dir, "resources", "views"),     # local: vendor/Illuminate/View/resources/views
+    os.path.join(os.getcwd(), "api", "resources", "views"),    # Vercel: /var/task/api/resources/views
+    os.path.join(os.getcwd(), "resources", "views"),           # local: /project/resources/views
+    "api/resources/views",                                      # relative with api prefix
+    "resources/views",                                          # relative fallback
+]
+
+VIEWS_DIR = None
+for path in _possible_paths:
+    if os.path.exists(path):
+        VIEWS_DIR = path
+        break
+
+if VIEWS_DIR is None:
+    # Last resort: try api/resources/views (Vercel serverless)
+    VIEWS_DIR = "api/resources/views"
+
+templates = Jinja2Templates(directory=VIEWS_DIR)
+
+class View:
+    @staticmethod
+    def make(template: str, context: dict = None):
+        # default kosong
+        context = context or {}
+        if "request" not in context:
+            raise ValueError('View.make() requires "request" in context')
+        return templates.TemplateResponse(template.replace(".", "/") + ".html", context)
+
+# ================================================================================
 # File: vendor/Illuminate/Routing/ImprovedRouter.py
 # ================================================================================
 """
@@ -1050,29 +1086,6 @@ class JWT:
             return None
         
         return parts[1]
-
-# ================================================================================
-# File: vendor/Illuminate/Console/Kernel.py
-# ================================================================================
-class Kernel:
-    def __init__(self):
-        self.commands = {
-            "migrate": MigrateCommand(),
-            "make:migration": MakeMigrationCommand(),
-        }
-
-    def handle(self, argv):
-        if len(argv) < 2:
-            print("❌ No command given")
-            return
-
-        cmd = argv[1]
-        args = argv[2:]
-
-        if cmd in self.commands:
-            self.commands[cmd].handle(args)
-        else:
-            print(f"❌ Command {cmd} not found")
 
 # ================================================================================
 # File: vendor/Illuminate/Database/Connection.py
@@ -1751,9 +1764,14 @@ class StorageManager:
         
     def configure(self, config: dict):
         """Configure storage from config dict"""
-        
-        self.default_disk = filesystems.default
-        self.disk_configs = filesystems.disks
+        # In bundled production, import from global scope
+        try:
+            self.default_disk = filesystems.default
+            self.disk_configs = filesystems.disks
+        except:
+            # Fallback: use passed config or defaults
+            self.default_disk = config.get('default', 'local')
+            self.disk_configs = config.get('disks', {})
         
     def disk(self, name: Optional[str] = None):
         """Get a disk instance"""
@@ -1766,11 +1784,14 @@ class StorageManager:
     
     def _create_driver(self, disk_name: str):
         """Create driver instance for disk"""
+        # Use cached disk_configs instead of importing again
+        if not hasattr(self, 'disk_configs'):
+            self.disk_configs = {}
         
-        if disk_name not in filesystems.disks:
+        if disk_name not in self.disk_configs:
             raise ValueError(f"Disk '{disk_name}' is not configured")
         
-        config = filesystems.disks[disk_name]
+        config = self.disk_configs[disk_name]
         driver_type = config.get("driver")
         
         if driver_type == "local":
@@ -1931,19 +1952,6 @@ def response(data: dict, status: int = 200):
     return Response.json(data, status)
 
 # ================================================================================
-# File: vendor/Illuminate/Support/Facades/View.py
-# ================================================================================
-# vendor/Illuminate/Support/Facades/View.py
-
-class View:
-    @staticmethod
-    def make(template: str, context: dict = {}):
-        return BaseView.make(template, context)
-
-def view(template: str, context: dict = {}):
-    return View.make(template, context)
-
-# ================================================================================
 # File: vendor/Illuminate/Support/Helpers/storage.py
 # ================================================================================
 """
@@ -2072,42 +2080,6 @@ def load_config():
         "DB_USERNAME": os.getenv("DB_USERNAME", "root"),
         "DB_PASSWORD": os.getenv("DB_PASSWORD", ""),
     }
-
-# ================================================================================
-# File: vendor/Illuminate/View/View.py
-# ================================================================================
-# vendor/Illuminate/View/View.py
-
-# Try multiple possible template locations for Vercel compatibility
-_current_file_dir = os.path.dirname(os.path.abspath(__file__))
-_possible_paths = [
-    os.path.join(_current_file_dir, "resources", "views"),     # local: vendor/Illuminate/View/resources/views
-    os.path.join(os.getcwd(), "api", "resources", "views"),    # Vercel: /var/task/api/resources/views
-    os.path.join(os.getcwd(), "resources", "views"),           # local: /project/resources/views
-    "api/resources/views",                                      # relative with api prefix
-    "resources/views",                                          # relative fallback
-]
-
-VIEWS_DIR = None
-for path in _possible_paths:
-    if os.path.exists(path):
-        VIEWS_DIR = path
-        break
-
-if VIEWS_DIR is None:
-    # Last resort: try api/resources/views (Vercel serverless)
-    VIEWS_DIR = "api/resources/views"
-
-templates = Jinja2Templates(directory=VIEWS_DIR)
-
-class View:
-    @staticmethod
-    def make(template: str, context: dict = None):
-        # default kosong
-        context = context or {}
-        if "request" not in context:
-            raise ValueError('View.make() requires "request" in context')
-        return templates.TemplateResponse(template.replace(".", "/") + ".html", context)
 
 # ================================================================================
 # File: vendor/Illuminate/View/ViewFactory.py
