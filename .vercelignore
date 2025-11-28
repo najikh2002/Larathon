@@ -30,3 +30,14 @@ routes/__pycache__/
 app/__pycache__/
 vendor/__pycache__/
 bootstrap/__pycache__/
+
+# Source files (we only deploy .dist/)
+app/
+bootstrap/
+config/
+database/
+routes/
+vendor/
+resources/
+public/
+artisan.py
