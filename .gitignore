@@ -44,6 +44,6 @@ htmlcov/
 # Vercel
 .vercel/
 
-# Build output
-.dist/
+# Build output - ignore api/ but keep .dist/ for deployment
 api/
+# Note: .dist/ is tracked in git for Vercel deployment
