@@ -2952,6 +2952,9 @@ class TestController(Controller):
     def index(self, request):
         return self.view("test", request)
 
+    def coba(self):
+        return self.view("coba")
+
 # ================================================================================
 # File: app/Http/Controllers/TodoController.py
 # ================================================================================
@@ -3291,6 +3294,7 @@ def register_routes():
     # =====================================
     Route.get('/', WelcomeController, 'index').name('home')
     Route.get('/test', TestController, 'index').name('test')
+    Route.get('/coba', TestController, 'coba').name('coba')
 
     # =====================================
     # Authentication Routes
