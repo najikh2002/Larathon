@@ -20,6 +20,7 @@ def register_routes():
     # =====================================
     Route.get('/', WelcomeController, 'index').name('home')
     Route.get('/test', TestController, 'index').name('test')
+    Route.get('/coba', TestController, 'coba').name('coba')
 
     # =====================================
     # Authentication Routes
